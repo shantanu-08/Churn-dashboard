@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customer Churn Analysis Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --surface2: #1e2333;
+    --border: rgba(255,255,255,0.07);
+    --accent: #00d4aa;
+    --accent2: #ff6b6b;
+    --accent3: #ffd166;
+    --accent4: #74b9ff;
+    --text: #eef0f4;
+    --muted: #8892a4;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.2rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  .header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.01em; }
+  .header-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .badge { font-family: var(--mono); font-size: 11px; background: rgba(0,212,170,0.1); color: var(--accent); border: 1px solid rgba(0,212,170,0.2); padding: 4px 10px; border-radius: 20px; }
+
+  /* LAYOUT */
+  .main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+
+  /* FILTER BAR */
+  .filter-bar {
+    display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center;
+  }
+  .filter-label { font-size: 12px; color: var(--muted); margin-right: 4px; }
+  .filter-btn {
+    font-family: var(--font); font-size: 12px; padding: 6px 14px;
+    border-radius: 20px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--muted); cursor: pointer; transition: all 0.2s;
+  }
+  .filter-btn.active, .filter-btn:hover {
+    background: rgba(0,212,170,0.12); color: var(--accent); border-color: rgba(0,212,170,0.3);
+  }
+
+  /* KPI CARDS */
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;
+  }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.2rem 1.4rem;
+    position: relative; overflow: hidden;
+    animation: fadeUp 0.5s ease both;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--kpi-color, var(--accent));
+  }
+  .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .kpi-value { font-size: 28px; font-weight: 600; line-height: 1; margin-bottom: 6px; }
+  .kpi-change { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+  .kpi-change.up { color: #ff6b6b; }
+  .kpi-change.down { color: var(--accent); }
+  .kpi-icon { position: absolute; right: 1.2rem; top: 50%; transform: translateY(-50%); font-size: 28px; opacity: 0.15; }
+
+  /* CHART GRID */
+  .chart-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  .chart-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.3rem;
+    animation: fadeUp 0.5s ease both;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 500; color: var(--text);
+    margin-bottom: 4px;
+  }
+  .card-sub { font-size: 11px; color: var(--muted); margin-bottom: 1.2rem; }
+  .chart-wrap { position: relative; }
+
+  /* INSIGHTS PANEL */
+  .insight {
+    display: flex; gap: 12px; padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+  }
+  .insight:last-child { border-bottom: none; }
+  .insight-num {
+    font-family: var(--mono); font-size: 11px;
+    background: rgba(0,212,170,0.1); color: var(--accent);
+    width: 22px; height: 22px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .insight-text { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .insight-text strong { color: var(--text); font-weight: 500; }
+
+  /* RISK TABLE */
+  .risk-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .risk-table th {
+    text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 0 8px 10px; font-weight: 400;
+  }
+  .risk-table td { padding: 9px 8px; border-top: 1px solid var(--border); vertical-align: middle; }
+  .risk-badge {
+    font-size: 11px; padding: 2px 9px; border-radius: 20px; font-weight: 500;
+  }
+  .risk-high { background: rgba(255,107,107,0.15); color: #ff6b6b; }
+  .risk-med { background: rgba(255,209,102,0.15); color: var(--accent3); }
+  .risk-low { background: rgba(0,212,170,0.1); color: var(--accent); }
+  .progress-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.06); margin-top: 4px; }
+  .progress-fill { height: 100%; border-radius: 2px; }
+
+  /* STRATEGY SECTION */
+  .strategy-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; margin-bottom: 1rem; }
+  .strategy-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.2rem;
+    animation: fadeUp 0.5s ease both;
+  }
+  .strategy-icon { font-size: 22px; margin-bottom: 10px; }
+  .strategy-title { font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+  .strategy-desc { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
+  .strategy-impact {
+    font-size: 11px; font-family: var(--mono);
+    color: var(--accent); background: rgba(0,212,170,0.08);
+    padding: 4px 10px; border-radius: 20px; display: inline-block;
+  }
+
+  /* SECTION HEADER */
+  .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+  .section-header h2 { font-size: 14px; font-weight: 500; }
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+  .section-tag {
+    font-size: 11px; color: var(--muted); font-family: var(--mono);
+  }
+
+  /* FOOTER */
+  .footer {
+    text-align: center; padding: 2rem; font-size: 12px; color: var(--muted);
+    border-top: 1px solid var(--border); margin-top: 1rem;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(2,1fr); }
+    .chart-grid, .chart-grid-3, .strategy-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="logo-dot"></div>
+    <div>
+      <h1>Customer Churn Analysis Dashboard</h1>
+      <div class="header-sub">TelecomX Subscription Services &nbsp;·&nbsp; Q1–Q4 2024</div>
+    </div>
+  </div>
+  <div class="badge">Business Analyst Project</div>
+</header>
+
+<main class="main">
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <span class="filter-label">Segment:</span>
+    <button class="filter-btn active" onclick="setFilter('all',this)">All Customers</button>
+    <button class="filter-btn" onclick="setFilter('basic',this)">Basic Plan</button>
+    <button class="filter-btn" onclick="setFilter('standard',this)">Standard Plan</button>
+    <button class="filter-btn" onclick="setFilter('premium',this)">Premium Plan</button>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi-card" style="--kpi-color:#ff6b6b">
+      <div class="kpi-label">Overall Churn Rate</div>
+      <div class="kpi-value" style="color:#ff6b6b" id="kpi-churn">26.5%</div>
+      <div class="kpi-change up">▲ 3.2% vs last year</div>
+      <div class="kpi-icon">📉</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:#00d4aa">
+      <div class="kpi-label">Total Customers</div>
+      <div class="kpi-value" id="kpi-total">7,043</div>
+      <div class="kpi-change down">▼ Analyzed dataset</div>
+      <div class="kpi-icon">👥</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:#ffd166">
+      <div class="kpi-label">Churned Customers</div>
+      <div class="kpi-value" style="color:#ffd166" id="kpi-churned">1,869</div>
+      <div class="kpi-change up">▲ High-risk segment</div>
+      <div class="kpi-icon">⚠️</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:#74b9ff">
+      <div class="kpi-label">Avg. Monthly Revenue Lost</div>
+      <div class="kpi-value" style="color:#74b9ff">₹4.2L</div>
+      <div class="kpi-change up">▲ Est. annual: ₹50L</div>
+      <div class="kpi-icon">💸</div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 1 -->
+  <div class="chart-grid">
+    <div class="card">
+      <div class="card-title">Monthly Churn Rate Trend</div>
+      <div class="card-sub">Churn % across 12 months — spike in Q3 post price revision</div>
+      <div class="chart-wrap"><canvas id="trendChart" height="200"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Churn by Contract Type</div>
+      <div class="card-sub">Month-to-month customers churn 5× more</div>
+      <div class="chart-wrap"><canvas id="contractChart" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 2 -->
+  <div class="chart-grid-3">
+    <div class="card">
+      <div class="card-title">Churn by Tenure Group</div>
+      <div class="card-sub">First 6 months = highest risk window</div>
+      <div class="chart-wrap"><canvas id="tenureChart" height="220"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Churn by Internet Service</div>
+      <div class="card-sub">Fiber optic users churn most despite premium pricing</div>
+      <div class="chart-wrap"><canvas id="serviceChart" height="220"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Churn Drivers — Root Cause</div>
+      <div class="card-sub">Top factors contributing to customer exit</div>
+      <div class="chart-wrap"><canvas id="driverChart" height="220"></canvas></div>
+    </div>
+  </div>
+
+  <!-- INSIGHTS + HIGH RISK TABLE -->
+  <div class="chart-grid" style="margin-bottom:1rem;">
+    <div class="card">
+      <div class="card-title">High-Risk Customer Segments</div>
+      <div class="card-sub">Customers most likely to churn in next 30 days</div>
+      <table class="risk-table">
+        <thead>
+          <tr>
+            <th>Segment</th>
+            <th>Churn %</th>
+            <th>Customers</th>
+            <th>Risk</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Month-to-month, Fiber, No support</td>
+            <td>
+              <div style="font-weight:500;color:#ff6b6b">72%</div>
+              <div class="progress-bar"><div class="progress-fill" style="width:72%;background:#ff6b6b"></div></div>
+            </td>
+            <td style="color:var(--muted)">342</td>
+            <td><span class="risk-badge risk-high">High</span></td>
+          </tr>
+          <tr>
+            <td>Tenure &lt; 6 months, Basic plan</td>
+            <td>
+              <div style="font-weight:500;color:#ff6b6b">61%</div>
+              <div class="progress-bar"><div class="progress-fill" style="width:61%;background:#ff6b6b"></div></div>
+            </td>
+            <td style="color:var(--muted)">518</td>
+            <td><span class="risk-badge risk-high">High</span></td>
+          </tr>
+          <tr>
+            <td>No add-ons, Monthly billing</td>
+            <td>
+              <div style="font-weight:500;color:#ffd166">48%</div>
+              <div class="progress-bar"><div class="progress-fill" style="width:48%;background:#ffd166"></div></div>
+            </td>
+            <td style="color:var(--muted)">891</td>
+            <td><span class="risk-badge risk-med">Medium</span></td>
+          </tr>
+          <tr>
+            <td>Senior, No partner, Electronic bill</td>
+            <td>
+              <div style="font-weight:500;color:#ffd166">41%</div>
+              <div class="progress-bar"><div class="progress-fill" style="width:41%;background:#ffd166"></div></div>
+            </td>
+            <td style="color:var(--muted)">234</td>
+            <td><span class="risk-badge risk-med">Medium</span></td>
+          </tr>
+          <tr>
+            <td>2-year contract, bundled services</td>
+            <td>
+              <div style="font-weight:500;color:#00d4aa">8%</div>
+              <div class="progress-bar"><div class="progress-fill" style="width:8%;background:#00d4aa"></div></div>
+            </td>
+            <td style="color:var(--muted)">2,104</td>
+            <td><span class="risk-badge risk-low">Low</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Key Findings</div>
+      <div class="card-sub">Business insights from the analysis</div>
+      <div class="insight">
+        <div class="insight-num">1</div>
+        <div class="insight-text"><strong>Month-to-month contracts</strong> account for 89% of all churn. Converting even 20% to annual contracts could save ₹10L/year.</div>
+      </div>
+      <div class="insight">
+        <div class="insight-num">2</div>
+        <div class="insight-text"><strong>First 6 months is the critical retention window.</strong> Customers who survive past 12 months show &lt;10% churn probability.</div>
+      </div>
+      <div class="insight">
+        <div class="insight-num">3</div>
+        <div class="insight-text"><strong>Fiber optic users churn despite paying more.</strong> Root cause: service quality complaints and poor support response time.</div>
+      </div>
+      <div class="insight">
+        <div class="insight-num">4</div>
+        <div class="insight-text"><strong>Customers with 3+ services</strong> (bundle) churn 4× less than single-service customers — upselling reduces churn.</div>
+      </div>
+      <div class="insight">
+        <div class="insight-num">5</div>
+        <div class="insight-text"><strong>Electronic billing + no paperless opt-in</strong> correlates with 38% higher churn — disengaged customers.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RETENTION STRATEGY -->
+  <div class="section-header">
+    <h2>Retention Strategy Recommendations</h2>
+    <div class="section-line"></div>
+    <div class="section-tag">data-driven proposals</div>
+  </div>
+
+  <div class="strategy-grid">
+    <div class="strategy-card">
+      <div class="strategy-icon">🎯</div>
+      <div class="strategy-title">30-60-90 Onboarding Program</div>
+      <div class="strategy-desc">Assign a customer success touchpoint at Day 7, Day 30, and Day 60 for all new subscribers. Proactively share usage tips and offer upgrade incentives during the critical first 90 days.</div>
+      <span class="strategy-impact">Est. impact: -18% early churn</span>
+    </div>
+    <div class="strategy-card">
+      <div class="strategy-icon">📦</div>
+      <div class="strategy-title">Bundle Incentive Campaign</div>
+      <div class="strategy-desc">Offer 15% discount to month-to-month, single-service customers who upgrade to a bundle. Target the 891 "no add-ons" medium-risk segment with personalised offers via SMS/email.</div>
+      <span class="strategy-impact">Est. impact: -22% segment churn</span>
+    </div>
+    <div class="strategy-card">
+      <div class="strategy-icon">🔔</div>
+      <div class="strategy-title">Churn Risk Alert System</div>
+      <div class="strategy-desc">Build a simple scoring model using tenure, contract type, and service count. Flag customers crossing a risk threshold and trigger an automated retention call or exclusive loyalty offer.</div>
+      <span class="strategy-impact">Est. impact: -15% overall churn</span>
+    </div>
+    <div class="strategy-card">
+      <div class="strategy-icon">🛠️</div>
+      <div class="strategy-title">Fiber Quality Task Force</div>
+      <div class="strategy-desc">Form a cross-functional team to investigate fiber optic complaints. Reduce average support response time from 48hrs to under 6hrs. Monitor NPS scores monthly for this segment.</div>
+      <span class="strategy-impact">Est. impact: -30% fiber churn</span>
+    </div>
+    <div class="strategy-card">
+      <div class="strategy-icon">📅</div>
+      <div class="strategy-title">Annual Contract Migration Drive</div>
+      <div class="strategy-desc">Run a quarterly campaign offering month-to-month customers 2 free months if they switch to annual billing. Frame as a price-lock guarantee against future increases.</div>
+      <span class="strategy-impact">Est. impact: ₹10L revenue saved</span>
+    </div>
+    <div class="strategy-card">
+      <div class="strategy-icon">📊</div>
+      <div class="strategy-title">Monthly Churn Review Meeting</div>
+      <div class="strategy-desc">Institutionalise a monthly BA-led review meeting sharing this dashboard with leadership. Track strategy KPIs and adjust campaigns based on real churn movement — making data culture central.</div>
+      <span class="strategy-impact">Est. impact: Ongoing optimisation</span>
+    </div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  Customer Churn Analysis &amp; Retention Strategy &nbsp;·&nbsp; Business Analyst Portfolio Project &nbsp;·&nbsp; Dataset: Telecom Customer Churn (7,043 records) &nbsp;·&nbsp; Tools: Excel, Power BI, Data Analysis
+</footer>
+
+<script>
+const CHART_DEFAULTS = {
+  color: '#eef0f4',
+  font: { family: 'DM Sans', size: 12 },
+  grid: 'rgba(255,255,255,0.05)',
+  tick: '#8892a4',
+};
+
+Chart.defaults.color = CHART_DEFAULTS.tick;
+Chart.defaults.font.family = CHART_DEFAULTS.font.family;
+Chart.defaults.font.size = CHART_DEFAULTS.font.size;
+
+// TREND CHART
+const trendCtx = document.getElementById('trendChart').getContext('2d');
+const trendData = {
+  all:      [21,22,23,24,25,26,28,32,31,27,26,25],
+  basic:    [30,31,32,33,35,37,41,45,43,39,37,35],
+  standard: [18,19,20,21,22,23,25,29,27,24,22,21],
+  premium:  [9,9,10,10,11,11,12,14,13,11,10,9],
+};
+const trendChart = new Chart(trendCtx, {
+  type: 'line',
+  data: {
+    labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+    datasets: [{
+      label: 'Churn Rate %',
+      data: trendData.all,
+      borderColor: '#ff6b6b',
+      backgroundColor: 'rgba(255,107,107,0.08)',
+      fill: true,
+      tension: 0.4,
+      pointBackgroundColor: '#ff6b6b',
+      pointRadius: 4,
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true, plugins: { legend: { display: false } },
+    scales: {
+      y: { grid: { color: CHART_DEFAULTS.grid }, ticks: { callback: v => v+'%' }, beginAtZero: false },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// CONTRACT CHART
+const contractCtx = document.getElementById('contractChart').getContext('2d');
+new Chart(contractCtx, {
+  type: 'doughnut',
+  data: {
+    labels: ['Month-to-Month', 'One Year', 'Two Year'],
+    datasets: [{
+      data: [89, 7, 4],
+      backgroundColor: ['#ff6b6b','#ffd166','#00d4aa'],
+      borderWidth: 0,
+      hoverOffset: 8,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}% of churn` } }
+    },
+    cutout: '65%',
+  }
+});
+
+// TENURE CHART
+const tenureCtx = document.getElementById('tenureChart').getContext('2d');
+new Chart(tenureCtx, {
+  type: 'bar',
+  data: {
+    labels: ['0–6 mo','7–12 mo','13–24 mo','25–48 mo','49+ mo'],
+    datasets: [{
+      label: 'Churn %',
+      data: [58, 38, 22, 13, 7],
+      backgroundColor: ['#ff6b6b','#ff9a6b','#ffd166','#74b9ff','#00d4aa'],
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true, plugins: { legend: { display: false } },
+    scales: {
+      y: { grid: { color: CHART_DEFAULTS.grid }, ticks: { callback: v => v+'%' }, beginAtZero: true },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// SERVICE CHART
+const serviceCtx = document.getElementById('serviceChart').getContext('2d');
+new Chart(serviceCtx, {
+  type: 'bar',
+  data: {
+    labels: ['Fiber Optic','DSL','No Internet'],
+    datasets: [{
+      label: 'Churn %',
+      data: [42, 19, 7],
+      backgroundColor: ['#ff6b6b','#ffd166','#00d4aa'],
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true, plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: CHART_DEFAULTS.grid }, ticks: { callback: v => v+'%' }, beginAtZero: true },
+      y: { grid: { display: false } }
+    }
+  }
+});
+
+// DRIVER CHART
+const driverCtx = document.getElementById('driverChart').getContext('2d');
+new Chart(driverCtx, {
+  type: 'bar',
+  data: {
+    labels: ['No tech support','Month-to-month','No online backup','High monthly charge','< 6 mo tenure','Fiber service','No streaming'],
+    datasets: [{
+      label: 'Contribution to Churn',
+      data: [85, 80, 72, 65, 58, 55, 40],
+      backgroundColor: 'rgba(0,212,170,0.6)',
+      borderColor: '#00d4aa',
+      borderWidth: 1,
+      borderRadius: 4,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: CHART_DEFAULTS.grid }, ticks: { callback: v => v+'%' }, beginAtZero: true, max: 100 },
+      y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+    }
+  }
+});
+
+// FILTER
+function setFilter(type, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const d = trendData[type];
+  trendChart.data.datasets[0].data = d;
+  trendChart.update();
+  const avg = Math.round(d.reduce((a,b)=>a+b,0)/d.length * 10)/10;
+  document.getElementById('kpi-churn').textContent = avg + '%';
+  const totals = { all: 7043, basic: 2240, standard: 3100, premium: 1703 };
+  const churned = { all: 1869, basic: 789, standard: 682, premium: 153 };
+  document.getElementById('kpi-total').textContent = totals[type].toLocaleString();
+  document.getElementById('kpi-churned').textContent = churned[type].toLocaleString();
+}
+</script>
+</body>
+</html>
